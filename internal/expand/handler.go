@@ -2,6 +2,7 @@ package expand
 
 import (
 	"context"
+	"github.com/pkg/errors"
 	"net/http"
 	"strconv"
 
@@ -81,7 +82,25 @@ func (h *handler) getExpand(w http.ResponseWriter, r *http.Request, _ httprouter
 		return
 	}
 
-	res, err := h.d.ExpandEngine().BuildTree(r.Context(), (&relationtuple.SubjectSet{}).FromURLQuery(r.URL.Query()), int(depth))
+	subjectTuple := (&relationtuple.SubjectSet{}).FromURLQuery(r.URL.Query())
+
+	// checking required parameters
+	if subjectTuple.Namespace == "" {
+		h.d.Writer().WriteError(w, r, herodot.ErrBadRequest.WithReason("namespace has to be specified"))
+		return
+	}
+
+	if subjectTuple.Object == "" {
+		h.d.Writer().WriteError(w, r, herodot.ErrBadRequest.WithReason("object has to be specified"))
+		return
+	}
+
+	if subjectTuple.Relation == "" {
+		h.d.Writer().WriteError(w, r, herodot.ErrBadRequest.WithReason("relation has to be specified"))
+		return
+	}
+
+	res, err := h.d.ExpandEngine().BuildTree(r.Context(), subjectTuple, int(depth))
 	if err != nil {
 		h.d.Writer().WriteError(w, r, err)
 		return
@@ -95,6 +114,20 @@ func (h *handler) Expand(ctx context.Context, req *acl.ExpandRequest) (*acl.Expa
 	if err != nil {
 		return nil, err
 	}
+
+	// checking required parameters
+	if sub.(*relationtuple.SubjectSet).Namespace == "" {
+		return nil, errors.New("namespace is required")
+	}
+
+	if sub.(*relationtuple.SubjectSet).Object == "" {
+		return nil, errors.New("object is required")
+	}
+
+	if sub.(*relationtuple.SubjectSet).Relation == "" {
+		return nil, errors.New("relation is required")
+	}
+
 	tree, err := h.d.ExpandEngine().BuildTree(ctx, sub, int(req.MaxDepth))
 	if err != nil {
 		return nil, err
